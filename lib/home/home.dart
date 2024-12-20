@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:tapti_nagrik_society/home/add_user.dart';
 import 'package:tapti_nagrik_society/home/dds.dart';
 import 'package:tapti_nagrik_society/home/rd.dart';
+import 'package:tapti_nagrik_society/home/saving.dart';
 import 'fd.dart';
 import 'mis.dart'; // For kIsWeb
 
@@ -162,7 +163,9 @@ class HomeViewState extends State<HomeView> with SingleTickerProviderStateMixin 
                       Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Saving()));
+                          },
                           style: ElevatedButton.styleFrom(
                             padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 24.0),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BirthDatePopup extends StatefulWidget {
   const BirthDatePopup({Key? key}) : super(key: key);
@@ -9,7 +10,28 @@ class BirthDatePopup extends StatefulWidget {
 }
 
 class _BirthDatePopupState extends State<BirthDatePopup> {
-  DateTime? _selectedDate; // Null initially to enforce validation
+  DateTime? _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedDate(); // Load the saved date when the popup initializes
+  }
+
+  Future<void> _loadSavedDate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedDate = prefs.getString('birthdate');
+    setState(() {
+      _selectedDate = savedDate != null
+          ? DateTime.parse(savedDate)
+          : DateTime.now(); // Default to today's date
+    });
+  }
+
+  Future<void> _saveDate(DateTime date) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('birthdate', date.toIso8601String());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +41,7 @@ class _BirthDatePopupState extends State<BirthDatePopup> {
         textAlign: TextAlign.center,
         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
-      backgroundColor: Colors.deepPurpleAccent.shade100,
+      backgroundColor: Colors.indigo.shade50,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -27,7 +49,7 @@ class _BirthDatePopupState extends State<BirthDatePopup> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildDateComponent(
-                  _selectedDate != null ? DateFormat('MMM').format(_selectedDate!) : '---'),
+                  _selectedDate != null ? DateFormat('MMM').format(_selectedDate!) : '--'),
               const SizedBox(width: 16.0),
               _buildDateComponent(
                   _selectedDate != null ? DateFormat('dd').format(_selectedDate!) : '--'),
@@ -73,6 +95,7 @@ class _BirthDatePopupState extends State<BirthDatePopup> {
           child: TextButton(
             onPressed: () {
               if (_selectedDate != null) {
+                _saveDate(_selectedDate!); // Save the selected date
                 Navigator.of(context).pop(_selectedDate); // Pass the date back
               } else {
                 setState(() {}); // Refresh to show validation message
@@ -115,7 +138,7 @@ class _BirthDatePopupState extends State<BirthDatePopup> {
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(1900), // Valid date range starts from 1900
       lastDate: DateTime(2101),
     );
@@ -126,6 +149,7 @@ class _BirthDatePopupState extends State<BirthDatePopup> {
     }
   }
 }
+
 class CustomPopup extends StatelessWidget {
   final String title;
   final String description;

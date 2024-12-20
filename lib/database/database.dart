@@ -1,124 +1,176 @@
 import 'package:flutter/material.dart';
-import 'package:mysql1/mysql1.dart';
-import '../popup/popup.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 
-class DatabaseService {
-  static Future<MySqlConnection?> connect() async {
-    try {
-      final conn = await MySqlConnection.connect(
-        ConnectionSettings(
-          host: 'localhost',
-          port: 3306,
-          user: 'root',
-         //password: 'Mayur@8665', // MySQL password
-          db: 'TAPTI_NAGRIK', // Your database name
-        ),
-      );
-      print('Database connection successful');
-      return conn;
-    } catch (e) {
-      debugPrint('Database connection failed: $e');
-      return null; // Return null if connection fails
-    }
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+
+  static Database? _database;
+
+  DatabaseHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+
+    _database = await _initDB('members.db');
+    return _database!;
   }
 
-  /// Insert user details and show a popup
-  static Future<void> insertUserDetails({
-    required BuildContext context,
-    required String fullname,
-    required String fathername,
-    required String husbandname,
-    required int adharno,
-    required String nomineename,
-    required int mobileno,
-    required String address,
-    required String openingdate,
-    required String dateofbirth,
-    required int ansh,
-    required int anshamt,
-    required int entryFees,
-    required String memberId,
-  }) async {
-    final conn = await connect();
-    if (conn == null) {
-      // Show error popup if connection fails
-      _showErrorPopup(
-        context,
-        'Connection Error',
-        'Failed to connect to the database. Please try again.',
-      );
-      return;
-    }
+  Future<Database> _initDB(String fileName) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, fileName);
 
-    try {
-      await conn.query(
-        '''
-        INSERT INTO add_user (
-          fullname, fathername, husbandname, adharno, nomineename, mobileno, address, 
-          openingdate, dateofbirth, ansh, anshamt, entry_fees, memberId
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''',
-        [
-          fullname,
-          fathername,
-          husbandname,
-          adharno,
-          nomineename,
-          mobileno,
-          address,
-          openingdate,
-          dateofbirth,
-          ansh,
-          anshamt,
-          entryFees,
-          memberId,
-        ],
-      );
-      debugPrint('User inserted successfully');
-      _showSuccessPopup(context);
-    } catch (e) {
-      debugPrint('Error inserting user: $e');
-      _showErrorPopup(
-        context,
-        'Insert Error',
-        'Failed to save user details: $e',
-      );
-    } finally {
-      await conn.close();
-    }
-  }
-
-  /// Show success popup
-  static void _showSuccessPopup(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return CustomPopup(
-          title: "Success",
-          description: "User details saved successfully!",
-          buttonText: "Okay",
-          onButtonPressed: () {
-            Navigator.of(context).pop();
-          },
-        );
-      },
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: _createDB,
     );
   }
 
-  /// Show error popup
-  static void _showErrorPopup(BuildContext context, String title, String description) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return CustomPopup(
-          title: title,
-          description: description,
-          buttonText: "Retry",
-          onButtonPressed: () {
-            Navigator.of(context).pop();
-          },
-        );
-      },
+  Future _createDB(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fullname TEXT,
+        fathername TEXT,
+        husbandname TEXT,
+        adharNumber TEXT,
+        nomineeName TEXT,
+        mobileNo TEXT,
+        address TEXT,
+        openingDate TEXT,
+        ansh TEXT,
+        anshAmount TEXT,
+        entryFee TEXT,
+        dateOfBirth TEXT,
+        memberId TEXT
+      )
+    ''');
+  }
+
+  Future<void> _showAllData() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+
+      final List<Map<String, dynamic>> result = await db.query('members'); // Fetch data
+      for (var row in result) {
+        print("row data is here ------------$row"); // Print each row
+      }
+    } catch (e) {
+      print("Error fetching data: $e");
+    }
+  }
+
+
+
+  Future<int> insertMember(Member member) async {
+    final db = await database;
+
+    return await db.insert('members', member.toMap());
+  }
+
+  void _fetchMembers() async {
+    final dbHelper = DatabaseHelper.instance;
+
+    final members = await dbHelper.getAllMembers();
+
+    for (var member in members) {
+      print("Member: ${member.fullname}, Mobile: ${member.mobileNo}");
+    }
+  }
+
+  Future<int> updateMember(Member member) async {
+    final db = await instance.database;
+    return await db.update(
+      'members',
+      member.toMap(),
+      where: 'id = ?',
+      whereArgs: [member.id],
+    );
+  }
+
+  Future<List<Member>> getAllMembers() async {
+    final db = await database;
+    _showAllData();
+    print(db.rawQuery('SELECT * FROM members'));
+    final result = await db.query('members');
+    return result.map((json) => Member.fromMap(json)).toList();
+  }
+
+  Future close() async {
+    final db = await database;
+    db.close();
+  }
+}
+
+class Member {
+  final int? id;
+  final String fullname;
+  final String fathername;
+  final String husbandname;
+  final String adharNumber;
+  final String nomineeName;
+  final String mobileNo;
+  final String address;
+  final String openingDate;
+  final String ansh;
+  final String anshAmount;
+  final String entryFee;
+  final String dateOfBirth;
+  final String memberId;
+
+  Member({
+    this.id,
+    required this.fullname,
+    required this.fathername,
+    required this.husbandname,
+    required this.adharNumber,
+    required this.nomineeName,
+    required this.mobileNo,
+    required this.address,
+    required this.openingDate,
+    required this.ansh,
+    required this.anshAmount,
+    required this.entryFee,
+    required this.dateOfBirth,
+    required this.memberId,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'fullname': fullname,
+      'fathername': fathername,
+      'husbandname': husbandname,
+      'adharNumber': adharNumber,
+      'nomineeName': nomineeName,
+      'mobileNo': mobileNo,
+      'address': address,
+      'openingDate': openingDate,
+      'ansh': ansh,
+      'anshAmount': anshAmount,
+      'entryFee': entryFee,
+      'dateOfBirth': dateOfBirth,
+      'memberId': memberId,
+    };
+  }
+
+  static Member fromMap(Map<String, dynamic> map) {
+    return Member(
+      id: map['id'],
+      fullname: map['fullname'],
+      fathername: map['fathername'],
+      husbandname: map['husbandname'],
+      adharNumber: map['adharNumber'],
+      nomineeName: map['nomineeName'],
+      mobileNo: map['mobileNo'],
+      address: map['address'],
+      openingDate: map['openingDate'],
+      ansh: map['ansh'],
+      anshAmount: map['anshAmount'],
+      entryFee: map['entryFee'],
+      dateOfBirth: map['dateOfBirth'],
+      memberId: map['memberId'],
     );
   }
 }

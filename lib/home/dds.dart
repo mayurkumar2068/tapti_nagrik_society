@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:tapti_nagrik_society/authentication/sidemenu/sidemenu.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:flutter/foundation.dart';
+import 'package:tapti_nagrik_society/database/database.dart';
+
 
 import 'home.dart'; // For kIsWeb
 
@@ -19,12 +22,40 @@ class DDSViewState extends State<DDSView> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   int _selectedIndex = 0;
   List<List<String>> excelData = [];
-  List<List<String>> filteredData = [];
+  List<Member> filteredData = [];
   TextEditingController searchController = TextEditingController();
+  List<UserDetails> users = [];
+  List<Member> members = [];
+  Map<String,dynamic> data = {};
 
+  Widget buildUserCell(Member user) {
+    return Card(
+      color: Colors.white,
+      margin: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      elevation: 4,
+      child: ListTile(
+        leading: CircleAvatar(
+          child: Text(data['fullName']),
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+        ),
+        title: Text("DDS Data", style: TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Father's Name: ${user.fathername}"),
+            Text("Mobile: ${user.mobileNo}"),
+            Text("Ansh Amount: ₹${user.anshAmount}"),
+          ],
+        ),
+        trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.deepPurple),
+      ),
+    );
+  }
   @override
   void initState() {
     super.initState();
+   _showAllData();
     _controller = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -36,6 +67,35 @@ class DDSViewState extends State<DDSView> with SingleTickerProviderStateMixin {
     _controller.dispose();
     searchController.dispose();
     super.dispose();
+  }
+
+  // Future<void> _fetchMembers() async {
+  //   try {
+  //     final dbMembers = await DatabaseHelper.instance.getAllMembers();
+  //     setState(() {
+  //       members = dbMembers;
+  //     });
+  //     print("Members data    $members");
+  //   } catch (e) {
+  //     print("Error fetching members: $e");
+  //   }
+  // }
+  Future<void> _showAllData() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+
+      final List<Map<String, dynamic>> result = await db.query('members'); // Fetch data
+
+      for (var row in result) {
+        setState(() {
+          data = row;
+        });
+        print("map data $data");
+        print("row data is here ------------$row"); // Print each row
+      }
+    } catch (e) {
+      print("Error fetching data: $e");
+    }
   }
 
   void _onItemTapped(int index) {
@@ -52,19 +112,19 @@ class DDSViewState extends State<DDSView> with SingleTickerProviderStateMixin {
       );
 
       if (result != null) {
-        final List<List<String>> tempData = [];
+        final List<Member> tempData = [];
         if (kIsWeb) {
           var bytes = result.files.single.bytes!;
           var excelFile = excel.Excel.decodeBytes(bytes);
-          tempData.addAll(_parseExcelData(excelFile));
+          //tempData.addAll(_parseExcelData(excelFile));
         } else {
           var bytes = File(result.files.single.path!).readAsBytesSync();
           var excelFile = excel.Excel.decodeBytes(bytes);
-          tempData.addAll(_parseExcelData(excelFile));
+          //tempData.addAll(_parseExcelData(excelFile));
         }
 
         setState(() {
-          excelData = tempData;
+       //   excelData = tempData;
           filteredData = tempData; // Initialize filtered data with all data
         });
       }
@@ -87,44 +147,36 @@ class DDSViewState extends State<DDSView> with SingleTickerProviderStateMixin {
   void _filterExcelData(String query) {
     setState(() {
       if (query.isEmpty) {
-        filteredData = List.from(excelData);
+        filteredData = List.from(members);
       } else {
-        filteredData = excelData.where((row) {
-          return row.any((cell) => cell.toLowerCase().contains(query.toLowerCase()));
+        filteredData = members.where((member) {
+          return member.fullname.toLowerCase().contains(query.toLowerCase()) ||
+              member.mobileNo.toLowerCase().contains(query.toLowerCase()) ||
+              member.fathername.toLowerCase().contains(query.toLowerCase());
         }).toList();
       }
     });
   }
 
+
   Widget _buildExcelViewer() {
-    if (filteredData.isEmpty) {
+    if (data.isEmpty) {
       return Center(child: Text("No Data Available"));
     }
 
     return Expanded(
       child: SingleChildScrollView(
         scrollDirection: Axis.vertical,
-        child: Table(
-          border: TableBorder.all(color: Colors.grey.shade400),
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: filteredData.map((row) {
-            return TableRow(
-              children: row.map((cell) {
-                return Container(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text(
-                    cell,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14),
-                  ),
-                );
-              }).toList(),
-            );
-          }).toList(),
-        ),
+        child: data.isEmpty ? Center(child: CircularProgressIndicator()) : ListView.builder(
+            itemCount: 5,
+            itemBuilder: (context, index)  {
+              return buildUserCell(data[index]);
+              }
+        )
       ),
     );
   }
+
 
   Widget _getBody() {
     switch (widget.title) {
@@ -192,4 +244,35 @@ class DDSViewState extends State<DDSView> with SingleTickerProviderStateMixin {
       ),
     );
   }
+}
+class UserDetails {
+  final String fullname;
+  final String fathername;
+  final String husbandname;
+  final String adharno;
+  final String nomineename;
+  final String mobileno;
+  final String address;
+  final String openingdate;
+  final String dateofbirth;
+  final String ansh;
+  final String anshamt;
+  final String entryFees;
+  final String memberId;
+
+  UserDetails({
+    required this.fullname,
+    required this.fathername,
+    required this.husbandname,
+    required this.adharno,
+    required this.nomineename,
+    required this.mobileno,
+    required this.address,
+    required this.openingdate,
+    required this.dateofbirth,
+    required this.ansh,
+    required this.anshamt,
+    required this.entryFees,
+    required this.memberId,
+  });
 }

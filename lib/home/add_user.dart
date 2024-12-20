@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:tapti_nagrik_society/button.dart';
 import 'package:tapti_nagrik_society/database/database.dart';
+import 'package:tapti_nagrik_society/home/dds.dart';
+import 'package:tapti_nagrik_society/home/saving.dart';
 import 'package:tapti_nagrik_society/textfield/textfield.dart';
-
 import '../popup/popup.dart';
 
 class AddUserView extends StatefulWidget {
@@ -25,14 +26,50 @@ class _AddUserViewState extends State<AddUserView> {
   final TextEditingController openingDate = TextEditingController();
   final TextEditingController ansh = TextEditingController();
   final TextEditingController anshAmount = TextEditingController();
+  final TextEditingController calculateAnshAmt = TextEditingController();
   final TextEditingController entryFee = TextEditingController();
   final TextEditingController dateOfBirth = TextEditingController();
   final TextEditingController memberId = TextEditingController();
   String _anshValue = '1';
-
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  void _selectDatePopup(BuildContext context,) async {
+  @override
+  void initState() {
+    super.initState();
+    calculateAnshAmtData();
+    DatabaseHelper.instance.database;
+    anshAmount.addListener(() {
+      calculateAnshAmtData();
+    });
+
+  }
+
+  void saveMember() {
+    final newMember = Member(
+      fullname: fullname.text,
+      fathername: fathername.text,
+      husbandname: husbandname.text,
+      adharNumber: adharNumber.text,
+      nomineeName: nomineeName.text,
+      mobileNo: mobileNo.text,
+      address: address.text,
+      openingDate: openingDate.text,
+      ansh: ansh.text,
+      anshAmount: calculateAnshAmt.text,
+      entryFee: entryFee.text,
+      dateOfBirth: dateOfBirth.text,
+      memberId: memberId.text,
+    );
+
+    DatabaseHelper.instance.insertMember(newMember).then((id) {
+      if (id > 0) {
+        print("save");
+        _showSuccessPopup(context);
+      }
+    });
+  }
+
+  Future<void> _selectDatePopup(BuildContext context, TextEditingController controller) async {
     final selectedDate = await showDialog<DateTime>(
       context: context,
       builder: (BuildContext context) {
@@ -42,26 +79,11 @@ class _AddUserViewState extends State<AddUserView> {
 
     if (selectedDate != null) {
       setState(() {
-        dateOfBirth.text = DateFormat('dd-MM-yyyy').format(selectedDate);
-      });
-    }
-  }
-  void _selectOpenDatePopup(BuildContext context,) async {
-    final selectedDate = await showDialog<DateTime>(
-      context: context,
-      builder: (BuildContext context) {
-        return const BirthDatePopup();
-      },
-    );
-
-    if (selectedDate != null) {
-      setState(() {
-        openingDate.text = DateFormat('dd-MM-yyyy').format(selectedDate);
+        controller.text = DateFormat('dd-MM-yyyy').format(selectedDate);
       });
     }
   }
 
-  // Validation logic
   String? _validateNotEmpty(String? value, String fieldName) {
     if (value == null || value.trim().isEmpty) {
       return '$fieldName is required.';
@@ -89,38 +111,33 @@ class _AddUserViewState extends State<AddUserView> {
     return null;
   }
 
-  void _submitForm(BuildContext) async {
-    if (_formKey.currentState?.validate() ?? false) {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      try {
-        await DatabaseService.insertUserDetails(
-          context: context,
-          fullname: fullname.text,
-          fathername: fathername.text,
-          husbandname: husbandname.text.isNotEmpty ? husbandname.text : 'N/A',
-          adharno: int.parse(adharNumber.text),
-          nomineename: nomineeName.text.isNotEmpty ? nomineeName.text : 'N/A',
-          mobileno: int.parse(mobileNo.text),
-          address: address.text,
-          openingdate: openingDate.text,
-          dateofbirth: dateOfBirth.text,
-          ansh: int.parse(_anshValue),
-          anshamt: int.parse(anshAmount.text),
-          entryFees: int.parse(entryFee.text),
-          memberId: memberId.text,
+  void _showSuccessPopup(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return CustomPopup(
+          title: "Success",
+          description: "User details saved successfully!",
+          buttonText: "Okay",
+          onButtonPressed: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Saving()));
+          },
         );
+      },
+    );
+  }
+
+  void _submitForm() async {
+    if (_formKey.currentState?.validate() ?? false) {
+      try {
+        saveMember();
+
       } catch (e) {
-        print('Error saving user: $e');
-      } finally {
-        Navigator.of(context).pop(); // Remove loading indicator
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving user: $e')),
+        );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -128,8 +145,15 @@ class _AddUserViewState extends State<AddUserView> {
       );
     }
   }
+  void calculateAnshAmtData() {
+    final anshAmountValue = int.tryParse(anshAmount.text) ?? 0;
+    final anshValue = int.tryParse(_anshValue) ?? 1;
+    final calculatedValue = anshAmountValue * anshValue;
 
-
+    setState(() {
+      calculateAnshAmt.text = calculatedValue.toString();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +168,9 @@ class _AddUserViewState extends State<AddUserView> {
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
         leading: IconButton(
-          onPressed: () {},
+          onPressed: () {
+            Navigator.pop(context);
+          },
           icon: const Icon(Icons.arrow_circle_left_outlined, color: Colors.white, size: 20),
         ),
       ),
@@ -165,7 +191,7 @@ class _AddUserViewState extends State<AddUserView> {
               ],
             ),
             child: Form(
-              key: _formKey, // Assigning the Form key
+              key: _formKey,
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Column(
@@ -175,56 +201,20 @@ class _AddUserViewState extends State<AddUserView> {
                       spacing: 12,
                       runSpacing: 12,
                       children: [
-                        CustomTextField(
-                          label: "Full name",
-                          controller: fullname,
-                          validator: (value) => _validateNotEmpty(value, 'Full name'),
-                        ),
-                        CustomTextField(
-                          label: "Father's name",
-                          controller: fathername,
-                          validator: (value) => _validateNotEmpty(value, 'Father\'s name'),
-                        ),
-                        CustomTextField(
-                          label: "Husband's name",
-                          controller: husbandname,
-                        ),
-                        CustomTextField(
-                          label: "Aadhar Number",
-                          controller: adharNumber,
-                          validator: _validateAadhar,
-                        ),
-                        CustomTextField(
-                          label: "Nominee Name",
-                          controller: nomineeName,
-                        ),
-                        CustomTextField(
-                          label: "Mobile Number",
-                          controller: mobileNo,
-                          validator: _validateMobile,
-                        ),
-                        CustomTextField(
-                          label: "Address",
-                          controller: address,
-                          validator: (value) => _validateNotEmpty(value, 'Address'),
-                        ),
-                        CustomTextField(
+                        _buildCustomTextField(label: "Full name", controller: fullname, validator: (value) => _validateNotEmpty(value, 'Full name')),
+                        _buildCustomTextField(label: "Father's name", controller: fathername, validator: (value) => _validateNotEmpty(value, 'Father\'s name')),
+                        _buildCustomTextField(label: "Husband's name", controller: husbandname),
+                        _buildCustomTextField(label: "Aadhar Number", controller: adharNumber, validator: _validateAadhar),
+                        _buildCustomTextField(label: "Nominee Name", controller: nomineeName),
+                        _buildCustomTextField(label: "Mobile Number", controller: mobileNo, validator: _validateMobile),
+                        _buildCustomTextField(label: "Address", controller: address, validator: (value) => _validateNotEmpty(value, 'Address')),
+                        _buildCustomTextField(
                           label: "Opening date",
                           controller: openingDate,
-
                           isReadOnly: true,
-                          onTap: () {
-                            _selectOpenDatePopup(context);
-
-                          },
+                          onTap: () => _selectDatePopup(context, openingDate),
                         ),
-                        CustomTextField(
-                          label: "Member id",
-                          controller: memberId,
-
-                          isReadOnly: false,
-                          validator:(value)=> _validateNotEmpty(value, 'Member ID')
-                        ),
+                        _buildCustomTextField(label: "Member id", controller: memberId, validator: (value) => _validateNotEmpty(value, 'Member ID')),
                         DropdownButtonFormField<String>(
                           borderRadius: BorderRadius.circular(15),
                           dropdownColor: Colors.indigo.shade100,
@@ -239,30 +229,24 @@ class _AddUserViewState extends State<AddUserView> {
                             setState(() {
                               _anshValue = newValue!;
                             });
+                            calculateAnshAmtData();
                           },
                           decoration: const InputDecoration(
                             labelText: 'Ansh',
                             border: OutlineInputBorder(),
                           ),
                         ),
-                        CustomTextField(
-                          label: "Ansh Amount",
-                          controller: anshAmount,
-                        ),
-                        CustomTextField(
-                          label: "Entry Fee",
-                          controller: entryFee,
-                        ),
-                        CustomTextField(
+                        _buildCustomTextField(label: "Ansh Amount", controller: anshAmount),
+                        _buildCustomTextField(label: "Calculated ansh amount", controller: calculateAnshAmt),
+                        _buildCustomTextField(label: "Entry Fee", controller: entryFee),
+                        _buildCustomTextField(
                           label: "Date of Birth",
                           controller: dateOfBirth,
                           isReadOnly: true,
-                          onTap: () {
-                            _selectDatePopup(context);
-                          },
+                          onTap: () => _selectDatePopup(context, dateOfBirth),
                         ),
                         CustomButton(
-                          onPressed: () {_submitForm(context);},
+                          onPressed: () => _submitForm(),
                           backgroundColor: Colors.pink,
                           borderColor: Colors.white,
                           textColor: Colors.white,
@@ -270,10 +254,8 @@ class _AddUserViewState extends State<AddUserView> {
                         )
                       ].map((field) {
                         return isWeb
-                            ? SizedBox(
-                            width: MediaQuery.of(context).size.width / 3 - 24, child: field)
-                            : SizedBox(
-                            width: MediaQuery.of(context).size.width - 24, child: field);
+                            ? SizedBox(width: MediaQuery.of(context).size.width / 3 - 24, child: field)
+                            : SizedBox(width: MediaQuery.of(context).size.width - 24, child: field);
                       }).toList(),
                     ),
                   ],
@@ -283,6 +265,16 @@ class _AddUserViewState extends State<AddUserView> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCustomTextField({required String label, required TextEditingController controller, String? Function(String?)? validator, bool isReadOnly = false, void Function()? onTap}) {
+    return CustomTextField(
+      label: label,
+      controller: controller,
+      validator: validator,
+      isReadOnly: isReadOnly,
+      onTap: onTap,
     );
   }
 }
